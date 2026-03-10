@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>单词蛇王</title>
+    <style>
+        :root { --neon: #00f2ff; --gold: #f1c40f; --epic: #ff00ff; }
+        body { margin: 0; overflow: hidden; background: #050510; font-family: 'PingFang SC', sans-serif; touch-action: none; color: white; }
+        canvas { display: block; }
+        .glass { background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; pointer-events: auto; }
+        
+        /* UI 层级 */
+        #hud { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 10; pointer-events: none; }
+        #menu { position: fixed; right: 10px; top: 80px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+        
+        /* 题目区 */
+        #quiz-box { position: fixed; top: 12%; left: 50%; transform: translateX(-50%); text-align: center; display: none; z-index: 5; pointer-events: none; }
+        #q-text { font-size: 42px; font-weight: bold; color: var(--neon); text-shadow: 0 0 15px var(--neon); }
+        
+        /* 弹窗系统 */
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-height: 80vh; overflow-y: auto; display: none; z-index: 1000; }
+        .btn { background: var(--neon); color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; }
+        
+        /* 单词本特效 */
+        .word-card { display: inline-block; padding: 8px; margin: 5px; border-radius: 5px; border: 1px solid #333; min-width: 80px; text-align: center; }
+        .unlocked { border-color: var(--gold); box-shadow: 0 0 10px var(--gold); color: var(--gold); font-weight: bold; }
+        
+        /* 摇杆 */
+        #joy-base { position: fixed; width: 100px; height: 100px; background: rgba(255,255,255,0.05); border-radius: 50%; bottom: 50px; left: 50px; display: none; border: 1px solid rgba(255,255,255,0.1); }
+        #joy-stick { position: absolute; width: 40px; height: 40px; background: var(--neon); border-radius: 50%; top: 30px; left: 30px; }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="glass">💰 <span id="u-coins">0</span> | 🧩 <span id="u-shards">0</span></div>
+        <div class="glass">🔥 Combo: <span id="u-combo">0</span> | ⭐ <span id="u-score">0</span></div>
+    </div>
+
+    <div id="menu">
+        <div class="glass" onclick="openShop()">🛒 皮肤商店</div>
+        <div class="glass" onclick="openBook()">📖 单词本</div>
+        <div class="glass" onclick="shareGame()">👥 一起玩</div>
+    </div>
+
+    <div id="quiz-box">
+        <div id="q-hint" style="font-size: 14px; color: #aaa;">请撞击正确意思：</div>
+        <div id="q-text">Apple</div>
+    </div>
+
+    <div id="login-modal" class="glass modal">
+        <h2 id="l-title">每日签到</h2>
+        <p id="l-body"></p>
+        <button class="btn" onclick="closeModal('login-modal')">收下奖励，去报仇！</button>
+    </div>
+
+    <div id="shop-modal" class="glass modal">
+        <h2>皮肤商店</h2>
+        <p>100金币 = 1个随机碎片</p>
+        <button class="btn" onclick="buyShard()">购买碎片</button>
+        <hr>
+        <div id="skin-list"></div>
+        <button class="btn" style="background:#444; color:#fff" onclick="closeModal('shop-modal')">关闭</button>
+    </div>
+
+    <div id="book-modal" class="glass modal">
+        <h2>我的收集 (已解锁: <span id="book-count">0</span>)</h2>
+        <div id="book-grid"></div>
+        <button class="btn" onclick="closeModal('book-modal')">关闭</button>
+    </div>
+
+    <div id="joy-base"><div id="joy-stick"></div></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // --- 1. 初始化词库与数据 ---
+        const wordBank = [
+            {en: "Abandon", zh: "放弃"}, {en: "Ability", zh: "能力"}, {en: "Abolish", zh: "废除"},
+            {en: "Absence", zh: "缺席"}, {en: "Absorb", zh: "吸收"}, {en: "Accent", zh: "口音"}
+        ];
+
+        let storage = {
+            coins: parseInt(localStorage.getItem('sw_coins')) || 0,
+            shards: parseInt(localStorage.getItem('sw_shards')) || 0,
+            unlocked: JSON.parse(localStorage.getItem('sw_unlocked') || "[]"),
+            wrong: JSON.parse(localStorage.getItem('sw_wrong') || "[]"),
+            streak: parseInt(localStorage.getItem('sw_streak')) || 0,
+            lastDate: localStorage.getItem('sw_date') || "",
+            skinId: 0
+        };
+
+        const skins = [
+            { name: "普通", need: 10, color: "#00f2ff" },
+            { name: "优质", need: 20, color: "#2ed573" },
+            { name: "精美", need: 30, color: "#f1c40f" },
+            { name: "史诗", need: 40, color: "#ff00ff" }
+        ];
+
+        let game = {
+            score: 0, combo: 0, lastEat: 0,
+            diff: 1, // 难度: 1:2选1, 2:4选1, 3:拼写
+            double: false, slow: false,
+            isQuiz: false, current: null,
+            camX: 0, camY: 0
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let player = { x: 0, y: 0, angle: 0, speed: 6, body: [], len: 10 };
+        let items = [], options = [], chests = [];
+        let joystick = { active: false, x: 0, y: 0, sx: 0, sy: 0 };
+
+        function init() {
+            window.addEventListener('resize', resize); resize();
+            for(let i=0; i<30; i++) spawnItem();
+            for(let i=0; i<3; i++) spawnChest();
+            checkDaily();
+            updateUI();
+            bindEvents();
+            requestAnimationFrame(loop);
+        }
+
+        // --- 2. 核心逻辑 ---
+        function spawnItem(isReview = false) {
+            let w = isReview ? storage.wrong.shift() : wordBank[Math.floor(Math.random()*wordBank.length)];
+            items.push({ ...w, x: (Math.random()-0.5)*4000, y: (Math.random()-0.5)*4000, review: isReview });
+        }
+
+        function spawnChest() {
+            chests.push({ x: (Math.random()-0.5)*3500, y: (Math.random()-0.5)*3500, type: Math.floor(Math.random()*3) });
+        }
+
+        function loop() {
+            let spd = game.slow ? player.speed * 0.5 : player.speed;
+            if(joystick.active) {
+                player.x += joystick.x * spd; player.y += joystick.y * spd;
+                player.angle = Math.atan2(joystick.y, joystick.x);
+            }
+            game.camX += (player.x - game.camX) * 0.1;
+            game.camY += (player.y - game.camY) * 0.1;
+            player.body.unshift({x: player.x, y: player.y});
+            if(player.body.length > player.len * 5) player.body.pop();
+
+            checkCollisions();
+            checkCombo();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function checkCollisions() {
+            if(game.isQuiz) {
+                options.forEach(opt => {
+                    if(Math.hypot(opt.x - player.x, opt.y - player.y) < 45) handleAnswer(opt.correct);
+                });
+                return;
+            }
+            items.forEach((it, i) => {
+                if(Math.hypot(it.x - player.x, it.y - player.y) < 40) {
+                    startQuiz(it); items.splice(i, 1);
+                }
+            });
+            chests.forEach((c, i) => {
+                if(Math.hypot(c.x - player.x, c.y - player.y) < 40) {
+                    triggerChest(c.type); chests.splice(i, 1); setTimeout(spawnChest, 8000);
+                }
+            });
+        }
+
+        // --- 3. 需求实现核心 ---
+        function startQuiz(it) {
+            game.isQuiz = true; game.current = it;
+            document.getElementById('quiz-box').style.display = 'block';
+            let qText = document.getElementById('q-text');
+            
+            let answers = [it.zh];
+            // 难度自适应逻辑
+            if(game.diff >= 3) { // 拼写模式
+                qText.innerText = `"${it.zh}" 的拼写?`;
+                answers = [it.en];
+                while(answers.length < 4) {
+                    let r = wordBank[Math.floor(Math.random()*wordBank.length)].en;
+                    if(!answers.includes(r)) answers.push(r);
+                }
+            } else {
+                qText.innerText = it.en;
+                let count = game.diff === 2 ? 4 : 2;
+                while(answers.length < count) {
+                    let r = wordBank[Math.floor(Math.random()*wordBank.length)].zh;
+                    if(!answers.includes(r)) answers.push(r);
+                }
+            }
+            answers.sort(() => Math.random()-0.5);
+            options = answers.map((a, i) => ({
+                text: a, correct: a === (game.diff>=3?it.en:it.zh),
+                x: player.x + Math.cos(i*1.5)*250, y: player.y + Math.sin(i*1.5)*250
+            }));
+        }
+
+        function handleAnswer(isCorrect) {
+            game.isQuiz = false; options = [];
+            document.getElementById('quiz-box').style.display = 'none';
+            if(isCorrect) {
+                game.score += (game.double ? 2 : 1);
+                game.combo++; game.lastEat = Date.now(); player.len++;
+                if(!storage.unlocked.includes(game.current.en)) storage.unlocked.push(game.current.en);
+                // 难度自适应
+                if(game.combo % 3 === 0) game.diff = Math.min(3, game.diff + 1);
+                // 连击奖励
+                if(game.combo === 10) triggerRain();
+                if(game.combo === 20) { game.slow = true; setTimeout(()=>game.slow=false, 10000); }
+            } else {
+                storage.wrong.push(game.current);
+                game.combo = 0; game.diff = Math.max(1, game.diff - 1);
+                alert("连击中断，下次再来！");
+            }
+            spawnItem(); save(); updateUI();
+        }
+
+        function triggerChest(type) {
+            if(type === 0) { game.double = true; alert("双倍分数持续10秒！"); setTimeout(()=>game.double=false, 10000); }
+            else if(type === 1) { storage.shards++; alert("屏幕闪烁！获得一个皮肤碎片！"); }
+            else { startQuiz(wordBank[Math.floor(Math.random()*wordBank.length)]); }
+            save(); updateUI();
+        }
+
+        function triggerRain() {
+            alert("单词雨掉落！");
+            for(let i=0; i<5; i++) {
+                let w = wordBank[Math.floor(Math.random()*wordBank.length)];
+                items.push({ ...w, x: player.x + (Math.random()-0.5)*800, y: player.y - 400 });
+            }
+        }
+
+        // --- 4. 签到与系统 ---
+        function checkDaily() {
+            let today = new Date().toDateString();
+            if(storage.lastDate !== today) {
+                storage.streak = (storage.lastDate === new Date(Date.now()-86400000).toDateString()) ? storage.streak + 1 : 1;
+                let reward = 100;
+                if(storage.streak >= 7) reward = 500;
+                if(storage.streak >= 30) reward = 2000;
+                storage.coins += reward; storage.lastDate = today;
+                document.getElementById('l-body').innerText = `连续第${storage.streak}天，获得${reward}金币！${storage.wrong.length>0 ? '\n昨天有'+storage.wrong.length+'个错题出现了！':''}`;
+                document.getElementById('login-modal').style.display = 'block';
+                save();
+            }
+        }
+
+        // --- 5. UI与绘图 ---
+        function draw() {
+            ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const ox = canvas.width/2 - game.camX, oy = canvas.height/2 - game.camY;
+            
+            // 背景网格
+            ctx.strokeStyle = '#112';
+            for(let i=-2000; i<2000; i+=100) { ctx.beginPath(); ctx.moveTo(i+ox,-2000+oy); ctx.lineTo(i+ox,2000+oy); ctx.stroke(); }
+
+            items.forEach(it => {
+                ctx.fillStyle = it.review ? '#f44' : '#fff';
+                ctx.beginPath(); ctx.arc(it.x+ox, it.y+oy, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#fff"; ctx.fillText(it.en, it.x+ox-10, it.y+oy+30);
+            });
+
+            chests.forEach(c => { ctx.fillStyle = '#f1c40f'; ctx.fillRect(c.x+ox-15, c.y+oy-15, 30, 30); });
+
+            options.forEach(opt => {
+                ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(opt.x+ox, opt.y+oy, 45, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.fillText(opt.text, opt.x+ox, opt.y+oy+5);
+            });
+
+            player.body.forEach((b, i) => {
+                if(i%4!==0) return;
+                ctx.fillStyle = skins[storage.skinId].color; ctx.globalAlpha = 1 - i/player.body.length;
+                ctx.beginPath(); ctx.arc(b.x+ox, b.y+oy, 20-i/10, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // --- 6. 商店与功能按钮 ---
+        function openShop() {
+            let list = document.getElementById('skin-list'); list.innerHTML = "";
+            skins.forEach((s, i) => {
+                let can = storage.shards >= s.need;
+                list.innerHTML += `<div style="margin:10px; color:${s.color}">${s.name}皮肤 (${s.need}碎片) 
+                    <button class="btn" onclick="unlockSkin(${i})" ${can?'':'disabled'}>${storage.skinId==i?'使用中':'兑换'}</button></div>`;
+            });
+            document.getElementById('shop-modal').style.display = 'block';
+        }
+
+        function buyShard() {
+            if(storage.coins >= 100) { storage.coins -= 100; storage.shards++; save(); updateUI(); alert("获得1个碎片！"); }
+            else { alert("金币不足！"); }
+        }
+
+        function unlockSkin(id) { storage.skinId = id; save(); openShop(); }
+
+        function openBook() {
+            let grid = document.getElementById('book-grid'); grid.innerHTML = "";
+            wordBank.forEach(w => {
+                let has = storage.unlocked.includes(w.en);
+                grid.innerHTML += `<div class="word-card ${has?'unlocked':''}">
+                    ${has ? w.en + '<br>' + w.zh : '???'}</div>`;
+            });
+            document.getElementById('book-count').innerText = storage.unlocked.length;
+            document.getElementById('book-modal').style.display = 'block';
+        }
+
+        function shareGame() {
+            let score = game.score;
+            prompt("快把你的链接发给好友，比比谁分数高！你的当前分是：", score);
+        }
+
+        function save() {
+            localStorage.setItem('sw_coins', storage.coins); localStorage.setItem('sw_shards', storage.shards);
+            localStorage.setItem('sw_unlocked', JSON.stringify(storage.unlocked));
+            localStorage.setItem('sw_wrong', JSON.stringify(storage.wrong));
+            localStorage.setItem('sw_streak', storage.streak); localStorage.setItem('sw_date', storage.lastDate);
+        }
+
+        function updateUI() {
+            document.getElementById('u-coins').innerText = storage.coins;
+            document.getElementById('u-shards').innerText = storage.shards;
+            document.getElementById('u-combo').innerText = game.combo;
+            document.getElementById('u-score').innerText = game.score;
+        }
+
+        function checkCombo() { if(game.combo > 0 && Date.now() - game.lastEat > 15000) { game.combo = 0; updateUI(); } }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        function bindEvents() {
+            canvas.addEventListener('touchstart', e => {
+                const t = e.touches[0]; joystick.active = true; joystick.sx = t.clientX; joystick.sy = t.clientY;
+                document.getElementById('joy-base').style.display = 'block';
+                document.getElementById('joy-base').style.left = t.clientX-50+'px'; document.getElementById('joy-base').style.top = t.clientY-50+'px';
+            });
+            window.addEventListener('touchmove', e => {
+                if(!joystick.active) return;
+                const t = e.touches[0], dx = t.clientX-joystick.sx, dy = t.clientY-joystick.sy, dist = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
+                joystick.x = Math.cos(ang); joystick.y = Math.sin(ang);
+                document.getElementById('joy-stick').style.transform = `translate(${Math.cos(ang)*Math.min(dist,30)}px, ${Math.sin(ang)*Math.min(dist,30)}px)`;
+            });
+            window.addEventListener('touchend', () => { joystick.active = false; document.getElementById('joy-base').style.display = 'none'; });
+        }
+        init();
+    </script>
+</body>
+</html>
