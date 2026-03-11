@@ -6,28 +6,23 @@
     <title>单词蛇王</title>
     <style>
         :root { --neon: #00f2ff; --gold: #f1c40f; --epic: #ff00ff; }
-        body { margin: 0; overflow: hidden; background: #050510; font-family: 'PingFang SC', sans-serif; touch-action: none; color: white; }
+        body { margin: 0; overflow: hidden; background: #050510; font-family: 'PingFang SC', sans-serif; touch-action: none; color: white; user-select: none; }
         canvas { display: block; }
         .glass { background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; pointer-events: auto; }
         
-        /* UI 层级 */
         #hud { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 10; pointer-events: none; }
         #menu { position: fixed; right: 10px; top: 80px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
         
-        /* 题目区 */
         #quiz-box { position: fixed; top: 12%; left: 50%; transform: translateX(-50%); text-align: center; display: none; z-index: 5; pointer-events: none; }
         #q-text { font-size: 42px; font-weight: bold; color: var(--neon); text-shadow: 0 0 15px var(--neon); }
         
-        /* 弹窗系统 */
         .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-height: 80vh; overflow-y: auto; display: none; z-index: 1000; }
         .btn { background: var(--neon); color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; }
         
-        /* 单词本特效 */
         .word-card { display: inline-block; padding: 8px; margin: 5px; border-radius: 5px; border: 1px solid #333; min-width: 80px; text-align: center; }
         .unlocked { border-color: var(--gold); box-shadow: 0 0 10px var(--gold); color: var(--gold); font-weight: bold; }
         
-        /* 摇杆 */
-        #joy-base { position: fixed; width: 100px; height: 100px; background: rgba(255,255,255,0.05); border-radius: 50%; bottom: 50px; left: 50px; display: none; border: 1px solid rgba(255,255,255,0.1); }
+        #joy-base { position: fixed; width: 100px; height: 100px; background: rgba(255,255,255,0.05); border-radius: 50%; bottom: 50px; left: 50px; display: none; border: 1px solid rgba(255,255,255,0.1); pointer-events: none; }
         #joy-stick { position: absolute; width: 40px; height: 40px; background: var(--neon); border-radius: 50%; top: 30px; left: 30px; }
     </style>
 </head>
@@ -41,7 +36,7 @@
     <div id="menu">
         <div class="glass" onclick="openShop()">🛒 皮肤商店</div>
         <div class="glass" onclick="openBook()">📖 单词本</div>
-        <div class="glass" onclick="shareGame()">👥 一起玩</div>
+        <div class="glass" onclick="shareGame()">👥 分数分享</div>
     </div>
 
     <div id="quiz-box">
@@ -52,7 +47,7 @@
     <div id="login-modal" class="glass modal">
         <h2 id="l-title">每日签到</h2>
         <p id="l-body"></p>
-        <button class="btn" onclick="closeModal('login-modal')">收下奖励，去报仇！</button>
+        <button class="btn" onclick="closeModal('login-modal')">开始战斗！</button>
     </div>
 
     <div id="shop-modal" class="glass modal">
@@ -74,83 +69,17 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- 1. 初始化词库与数据 ---
         const wordBank = [
-    // --- A 系列 ---
-    {en: "Abandon", zh: "放弃"}, {en: "Ability", zh: "能力"}, {en: "Abnormal", zh: "异常的"},
-    {en: "Aboard", zh: "在船上"}, {en: "Abolish", zh: "废除"}, {en: "Abrupt", zh: "突然的"},
-    {en: "Absence", zh: "缺席"}, {en: "Absolute", zh: "绝对的"}, {en: "Absorb", zh: "吸收"},
-    {en: "Abstract", zh: "抽象的"}, {en: "Academic", zh: "学术的"}, {en: "Accent", zh: "口音"},
-    {en: "Accept", zh: "接受"}, {en: "Access", zh: "接近/入口"}, {en: "Accident", zh: "事故"},
-    {en: "Accommodation", zh: "住宿"}, {en: "Accompany", zh: "陪伴"}, {en: "Accomplish", zh: "完成"},
-    {en: "Account", zh: "账户/描述"}, {en: "Accumulate", zh: "积累"}, {en: "Accuracy", zh: "准确性"},
-    {en: "Accuse", zh: "指控"}, {en: "Accustomed", zh: "习惯于"}, {en: "Achieve", zh: "达到/实现"},
-    {en: "Acknowledge", zh: "承认/感谢"}, {en: "Acquire", zh: "获得"}, {en: "Advantage", zh: "优势"},
-    {en: "Advocate", zh: "提倡"}, {en: "Agriculture", zh: "农业"}, {en: "Ambitious", zh: "有雄心的"},
-    {en: "Analyze", zh: "分析"}, {en: "Ancestor", zh: "祖先"}, {en: "Anxiety", zh: "焦虑"},
-    {en: "Apologize", zh: "道歉"}, {en: "Apparent", zh: "显然的"}, {en: "Appeal", zh: "呼吁/吸引"},
-    {en: "Appoint", zh: "任命/委派"}, {en: "Appreciate", zh: "欣赏/感激"}, {en: "Appropriate", zh: "适当的"},
-    {en: "Architecture", zh: "建筑学"}, {en: "Artificial", zh: "人造的"}, {en: "Aspect", zh: "方面"},
-    {en: "Assess", zh: "评估"}, {en: "Assist", zh: "协助"}, {en: "Assume", zh: "假设/承担"},
-    {en: "Astonish", zh: "使惊讶"}, {en: "Attempt", zh: "尝试"}, {en: "Attitude", zh: "态度"},
-    {en: "Attract", zh: "吸引"}, {en: "Authentic", zh: "真实的"}, {en: "Available", zh: "可用的"},
-    {en: "Average", zh: "平均的"}, {en: "Avoid", zh: "避免"}, {en: "Aware", zh: "意识到的"},
-
-    // --- B 系列 ---
-    {en: "Baggage", zh: "行李"}, {en: "Balance", zh: "平衡"}, {en: "Ban", zh: "禁止"},
-    {en: "Barrier", zh: "障碍"}, {en: "Battery", zh: "电池"}, {en: "Beam", zh: "光线/笑容"},
-    {en: "Behalf", zh: "代表"}, {en: "Behave", zh: "表现"}, {en: "Belief", zh: "信念"},
-    {en: "Beneficial", zh: "有益的"}, {en: "Betray", zh: "背叛"}, {en: "Beyond", zh: "超过"},
-    {en: "Biography", zh: "传记"}, {en: "Bless", zh: "保佑"}, {en: "Block", zh: "阻塞/街区"},
-    {en: "Bloom", zh: "开花"}, {en: "Board", zh: "木板/上船"}, {en: "Bond", zh: "纽带/联系"},
-    {en: "Boom", zh: "繁荣"}, {en: "Border", zh: "边界"}, {en: "Bother", zh: "打扰"},
-    {en: "Boundary", zh: "分界线"}, {en: "Brave", zh: "勇敢的"}, {en: "Brief", zh: "简短的"},
-    {en: "Broad", zh: "宽的"}, {en: "Budget", zh: "预算"}, {en: "Burden", zh: "负担"},
-    {en: "Burst", zh: "爆发"}, {en: "Bury", zh: "埋葬"}, {en: "Bush", zh: "灌木"},
-
-    // --- C 系列 ---
-    {en: "Calculate", zh: "计算"}, {en: "Calendar", zh: "日历"}, {en: "Campaign", zh: "战役/活动"},
-    {en: "Candidate", zh: "候选人"}, {en: "Canteen", zh: "食堂"}, {en: "Capital", zh: "首都/资本"},
-    {en: "Capsule", zh: "胶囊"}, {en: "Carbon", zh: "碳"}, {en: "Career", zh: "职业"},
-    {en: "Cash", zh: "现金"}, {en: "Catalog", zh: "目录"}, {en: "Category", zh: "类别"},
-    {en: "Cautious", zh: "谨慎的"}, {en: "Celebration", zh: "庆祝"}, {en: "Cell", zh: "细胞/单元"},
-    {en: "Ceremony", zh: "仪式"}, {en: "Certificate", zh: "证书"}, {en: "Challenge", zh: "挑战"},
-    {en: "Champion", zh: "冠军"}, {en: "Channel", zh: "频道/渠道"}, {en: "Character", zh: "性格/角色"},
-    {en: "Charge", zh: "收费/指控"}, {en: "Charity", zh: "慈善"}, {en: "Cheek", zh: "面颊"},
-    {en: "Chemical", zh: "化学的"}, {en: "Circumstance", zh: "环境/情况"}, {en: "Citizen", zh: "公民"},
-    {en: "Civilization", zh: "文明"}, {en: "Clarify", zh: "阐明"}, {en: "Classic", zh: "经典的"},
-    {en: "Classification", zh: "分类"}, {en: "Climate", zh: "气候"}, {en: "Clinic", zh: "诊所"},
-    {en: "Clue", zh: "线索"}, {en: "Coach", zh: "教练/长途车"}, {en: "Collapse", zh: "崩溃/倒塌"},
-    {en: "Collection", zh: "收藏"}, {en: "Combine", zh: "结合"}, {en: "Comfort", zh: "安慰/舒适"},
-    {en: "Command", zh: "命令/掌握"}, {en: "Comment", zh: "评论"}, {en: "Commit", zh: "犯(罪)/承诺"},
-    {en: "Committee", zh: "委员会"}, {en: "Common", zh: "常见的"}, {en: "Communication", zh: "交流"},
-    {en: "Community", zh: "社区"}, {en: "Companion", zh: "同伴"}, {en: "Company", zh: "公司/陪伴"},
-    {en: "Compare", zh: "比较"}, {en: "Compass", zh: "指南针"}, {en: "Compensate", zh: "补偿"},
-    {en: "Compete", zh: "竞争"}, {en: "Competence", zh: "能力"}, {en: "Complain", zh: "投诉/抱怨"},
-    {en: "Complex", zh: "复杂的"}, {en: "Component", zh: "成分/组件"}, {en: "Composition", zh: "作文/结构"},
-    {en: "Comprehension", zh: "理解"}, {en: "Compromise", zh: "妥协"}, {en: "Compulsory", zh: "强制的"},
-    {en: "Concentrate", zh: "集中"}, {en: "Concept", zh: "概念"}, {en: "Concern", zh: "关心/担心"},
-    {en: "Conclude", zh: "推断/结束"}, {en: "Concrete", zh: "混凝土/具体的"}, {en: "Condition", zh: "条件/状况"},
-    {en: "Conduct", zh: "行为/引导"}, {en: "Confidence", zh: "信心"}, {en: "Confirm", zh: "确认"},
-    {en: "Conflict", zh: "冲突"}, {en: "Confuse", zh: "使困惑"}, {en: "Congratulation", zh: "祝贺"},
-    {en: "Connect", zh: "连接"}, {en: "Consequence", zh: "后果"}, {en: "Conservation", zh: "保存/保护"},
-    {en: "Consider", zh: "考虑"}, {en: "Consist", zh: "组成"}, {en: "Constant", zh: "不断的"},
-    {en: "Construct", zh: "建造"}, {en: "Consult", zh: "咨询"}, {en: "Consume", zh: "消耗"},
-    {en: "Contain", zh: "包含"}, {en: "Contemporary", zh: "当代的"}, {en: "Content", zh: "内容/满意的"},
-    {en: "Contribute", zh: "贡献/捐助"}, {en: "Control", zh: "控制"}, {en: "Convenient", zh: "方便的"},
-    {en: "Conversation", zh: "对话"}, {en: "Convey", zh: "传达"}, {en: "Convince", zh: "说服"},
-    {en: "Cope", zh: "应付"}, {en: "Corporation", zh: "公司/法人"}, {en: "Correction", zh: "改正"},
-    {en: "Correspond", zh: "对应/通信"}, {en: "Corruption", zh: "腐败"}, {en: "Costume", zh: "服装"},
-    {en: "Cough", zh: "咳嗽"}, {en: "Counter", zh: "柜台"}, {en: "Courage", zh: "勇气"},
-    {en: "Course", zh: "过程/课程"}, {en: "Court", zh: "法庭/球场"}, {en: "Cover", zh: "覆盖/封面"},
-    {en: "Crash", zh: "撞碎/坠毁"}, {en: "Creature", zh: "生物"}, {en: "Credit", zh: "信用/学分"},
-    {en: "Crime", zh: "罪行"}, {en: "Crisis", zh: "危机"}, {en: "Criterion", zh: "标准"},
-    {en: "Critical", zh: "关键的/批评的"}, {en: "Crop", zh: "农作物"}, {en: "Crucial", zh: "至关重要的"},
-    {en: "Crude", zh: "粗鲁的/原油"}, {en: "Cruel", zh: "残酷的"}, {en: "Culture", zh: "文化"},
-    {en: "Currency", zh: "货币"}, {en: "Curriculum", zh: "课程"}, {en: "Custom", zh: "习俗/海关"}
-            
-        
-    ];
+            {en: "Abandon", zh: "放弃"}, {en: "Ability", zh: "能力"}, {en: "Abnormal", zh: "异常的"},
+            {en: "Aboard", zh: "在船上"}, {en: "Abolish", zh: "废除"}, {en: "Abrupt", zh: "突然的"},
+            {en: "Absence", zh: "缺席"}, {en: "Absolute", zh: "绝对的"}, {en: "Absorb", zh: "吸收"},
+            {en: "Abstract", zh: "抽象的"}, {en: "Academic", zh: "学术的"}, {en: "Accent", zh: "口音"},
+            {en: "Accept", zh: "接受"}, {en: "Access", zh: "入口"}, {en: "Accident", zh: "事故"},
+            {en: "Accommodate", zh: "容纳"}, {en: "Accompany", zh: "陪伴"}, {en: "Account", zh: "账户"},
+            {en: "Accuracy", zh: "准确性"}, {en: "Achieve", zh: "实现"}, {en: "Analyze", zh: "分析"},
+            {en: "Baggage", zh: "行李"}, {en: "Balance", zh: "平衡"}, {en: "Barrier", zh: "障碍"},
+            {en: "Calculate", zh: "计算"}, {en: "Campaign", zh: "活动"}, {en: "Candidate", zh: "候选人"}
+        ];
 
         let storage = {
             coins: parseInt(localStorage.getItem('sw_coins')) || 0,
@@ -163,54 +92,65 @@
         };
 
         const skins = [
-            { name: "普通", need: 10, color: "#00f2ff" },
-            { name: "优质", need: 20, color: "#2ed573" },
-            { name: "精美", need: 30, color: "#f1c40f" },
-            { name: "史诗", need: 40, color: "#ff00ff" }
+            { name: "系统蓝", need: 0, color: "#00f2ff" },
+            { name: "翡翠绿", need: 10, color: "#2ed573" },
+            { name: "土豪金", need: 20, color: "#f1c40f" },
+            { name: "幻彩紫", need: 30, color: "#ff00ff" }
         ];
 
         let game = {
             score: 0, combo: 0, lastEat: 0,
-            diff: 1, // 难度: 1:2选1, 2:4选1, 3:拼写
-            double: false, slow: false,
+            diff: 1, double: false, slow: false,
             isQuiz: false, current: null,
             camX: 0, camY: 0
         };
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        let player = { x: 0, y: 0, angle: 0, speed: 6, body: [], len: 10 };
+        
+        let player = { x: 0, y: 0, angle: 0, speed: 5, body: [], len: 10 };
         let items = [], options = [], chests = [];
         let joystick = { active: false, x: 0, y: 0, sx: 0, sy: 0 };
 
         function init() {
-            window.addEventListener('resize', resize); resize();
+            window.addEventListener('resize', resize); 
+            resize();
+            
+            // 初始化玩家位置到中心
+            player.x = 0; player.y = 0;
+            for(let i=0; i<player.len*5; i++) player.body.push({x:0, y:0});
+
             for(let i=0; i<30; i++) spawnItem();
             for(let i=0; i<3; i++) spawnChest();
+            
             checkDaily();
             updateUI();
             bindEvents();
             requestAnimationFrame(loop);
         }
 
-        // --- 2. 核心逻辑 ---
         function spawnItem(isReview = false) {
-            let w = isReview ? storage.wrong.shift() : wordBank[Math.floor(Math.random()*wordBank.length)];
-            items.push({ ...w, x: (Math.random()-0.5)*4000, y: (Math.random()-0.5)*4000, review: isReview });
+            let w = (isReview && storage.wrong.length > 0) ? storage.wrong.shift() : wordBank[Math.floor(Math.random()*wordBank.length)];
+            items.push({ ...w, x: (Math.random()-0.5)*3000, y: (Math.random()-0.5)*3000, review: isReview });
         }
 
         function spawnChest() {
-            chests.push({ x: (Math.random()-0.5)*3500, y: (Math.random()-0.5)*3500, type: Math.floor(Math.random()*3) });
+            chests.push({ x: (Math.random()-0.5)*2500, y: (Math.random()-0.5)*2500, type: Math.floor(Math.random()*3) });
         }
 
         function loop() {
             let spd = game.slow ? player.speed * 0.5 : player.speed;
+            
             if(joystick.active) {
-                player.x += joystick.x * spd; player.y += joystick.y * spd;
+                player.x += joystick.x * spd; 
+                player.y += joystick.y * spd;
                 player.angle = Math.atan2(joystick.y, joystick.x);
             }
+
+            // 平滑相机跟随
             game.camX += (player.x - game.camX) * 0.1;
             game.camY += (player.y - game.camY) * 0.1;
+
             player.body.unshift({x: player.x, y: player.y});
             if(player.body.length > player.len * 5) player.body.pop();
 
@@ -223,7 +163,7 @@
         function checkCollisions() {
             if(game.isQuiz) {
                 options.forEach(opt => {
-                    if(Math.hypot(opt.x - player.x, opt.y - player.y) < 45) handleAnswer(opt.correct);
+                    if(Math.hypot(opt.x - player.x, opt.y - player.y) < 50) handleAnswer(opt.correct);
                 });
                 return;
             }
@@ -239,181 +179,174 @@
             });
         }
 
-        // --- 3. 需求实现核心 ---
         function startQuiz(it) {
-            game.isQuiz = true; game.current = it;
+            game.isQuiz = true; 
+            game.current = it;
             document.getElementById('quiz-box').style.display = 'block';
             let qText = document.getElementById('q-text');
             
             let answers = [it.zh];
-            // 难度自适应逻辑
-            if(game.diff >= 3) { // 拼写模式
-                qText.innerText = `"${it.zh}" 的拼写?`;
-                answers = [it.en];
-                while(answers.length < 4) {
-                    let r = wordBank[Math.floor(Math.random()*wordBank.length)].en;
-                    if(!answers.includes(r)) answers.push(r);
-                }
-            } else {
-                qText.innerText = it.en;
-                let count = game.diff === 2 ? 4 : 2;
-                while(answers.length < count) {
-                    let r = wordBank[Math.floor(Math.random()*wordBank.length)].zh;
-                    if(!answers.includes(r)) answers.push(r);
-                }
+            qText.innerText = it.en;
+            let count = game.diff >= 2 ? 4 : 2;
+            while(answers.length < count) {
+                let r = wordBank[Math.floor(Math.random()*wordBank.length)].zh;
+                if(!answers.includes(r)) answers.push(r);
             }
+            
             answers.sort(() => Math.random()-0.5);
             options = answers.map((a, i) => ({
-                text: a, correct: a === (game.diff>=3?it.en:it.zh),
-                x: player.x + Math.cos(i*1.5)*250, y: player.y + Math.sin(i*1.5)*250
+                text: a, correct: a === it.zh,
+                x: player.x + Math.cos(i * (Math.PI*2/count)) * 200, 
+                y: player.y + Math.sin(i * (Math.PI*2/count)) * 200
             }));
         }
 
         function handleAnswer(isCorrect) {
-            game.isQuiz = false; options = [];
+            game.isQuiz = false; 
+            options = [];
             document.getElementById('quiz-box').style.display = 'none';
+            
             if(isCorrect) {
-                game.score += (game.double ? 2 : 1);
-                game.combo++; game.lastEat = Date.now(); player.len++;
-                if(!storage.unlocked.includes(game.current.en)) storage.unlocked.push(game.current.en);
-                // 难度自适应
-                if(game.combo % 3 === 0) game.diff = Math.min(3, game.diff + 1);
-                // 连击奖励
-                if(game.combo === 10) triggerRain();
-                if(game.combo === 20) { game.slow = true; setTimeout(()=>game.slow=false, 10000); }
+                game.score += (game.double ? 20 : 10);
+                game.combo++; 
+                game.lastEat = Date.now(); 
+                player.len += 2;
+                if(game.current && !storage.unlocked.includes(game.current.en)) storage.unlocked.push(game.current.en);
             } else {
-                storage.wrong.push(game.current);
-                game.combo = 0; game.diff = Math.max(1, game.diff - 1);
-                alert("连击中断，下次再来！");
+                if(game.current) storage.wrong.push(game.current);
+                game.combo = 0;
             }
             spawnItem(); save(); updateUI();
         }
 
         function triggerChest(type) {
-            if(type === 0) { game.double = true; alert("双倍分数持续10秒！"); setTimeout(()=>game.double=false, 10000); }
-            else if(type === 1) { storage.shards++; alert("屏幕闪烁！获得一个皮肤碎片！"); }
-            else { startQuiz(wordBank[Math.floor(Math.random()*wordBank.length)]); }
+            if(type === 0) { game.double = true; setTimeout(()=>game.double=false, 10000); alert("双倍得分！"); }
+            else if(type === 1) { storage.shards++; alert("获得皮肤碎片！"); }
+            else { storage.coins += 50; alert("获得50金币！"); }
             save(); updateUI();
         }
 
-        function triggerRain() {
-            alert("单词雨掉落！");
-            for(let i=0; i<5; i++) {
-                let w = wordBank[Math.floor(Math.random()*wordBank.length)];
-                items.push({ ...w, x: player.x + (Math.random()-0.5)*800, y: player.y - 400 });
-            }
-        }
-
-        // --- 4. 签到与系统 ---
-        function checkDaily() {
-            let today = new Date().toDateString();
-            if(storage.lastDate !== today) {
-                storage.streak = (storage.lastDate === new Date(Date.now()-86400000).toDateString()) ? storage.streak + 1 : 1;
-                let reward = 100;
-                if(storage.streak >= 7) reward = 500;
-                if(storage.streak >= 30) reward = 2000;
-                storage.coins += reward; storage.lastDate = today;
-                document.getElementById('l-body').innerText = `连续第${storage.streak}天，获得${reward}金币！${storage.wrong.length>0 ? '\n昨天有'+storage.wrong.length+'个错题出现了！':''}`;
-                document.getElementById('login-modal').style.display = 'block';
-                save();
-            }
-        }
-
-        // --- 5. UI与绘图 ---
         function draw() {
-            ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            const ox = canvas.width/2 - game.camX, oy = canvas.height/2 - game.camY;
+            ctx.fillStyle = '#050510'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // 背景网格
+            const ox = canvas.width/2 - game.camX;
+            const oy = canvas.height/2 - game.camY;
+            
+            // 网格背景
             ctx.strokeStyle = '#112';
-            for(let i=-2000; i<2000; i+=100) { ctx.beginPath(); ctx.moveTo(i+ox,-2000+oy); ctx.lineTo(i+ox,2000+oy); ctx.stroke(); }
+            ctx.lineWidth = 1;
+            for(let i=-2000; i<=2000; i+=100) {
+                ctx.beginPath(); ctx.moveTo(i+ox, -2000+oy); ctx.lineTo(i+ox, 2000+oy); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-2000+ox, i+oy); ctx.lineTo(2000+ox, i+oy); ctx.stroke();
+            }
 
+            // 绘制题目选项
+            options.forEach(opt => {
+                ctx.fillStyle = 'rgba(0, 242, 255, 0.2)';
+                ctx.beginPath(); ctx.arc(opt.x+ox, opt.y+oy, 50, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = varColor('--neon'); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = "bold 18px Arial"; ctx.textAlign = 'center';
+                ctx.fillText(opt.text, opt.x+ox, opt.y+oy+7);
+            });
+
+            // 绘制单词点
             items.forEach(it => {
                 ctx.fillStyle = it.review ? '#f44' : '#fff';
-                ctx.beginPath(); ctx.arc(it.x+ox, it.y+oy, 15, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = "#fff"; ctx.fillText(it.en, it.x+ox-10, it.y+oy+30);
+                ctx.beginPath(); ctx.arc(it.x+ox, it.y+oy, 12, 0, Math.PI*2); ctx.fill();
+                ctx.font = "14px Arial"; ctx.fillText(it.en, it.x+ox, it.y+oy+30);
             });
 
-            chests.forEach(c => { ctx.fillStyle = '#f1c40f'; ctx.fillRect(c.x+ox-15, c.y+oy-15, 30, 30); });
-
-            options.forEach(opt => {
-                ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(opt.x+ox, opt.y+oy, 45, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.fillText(opt.text, opt.x+ox, opt.y+oy+5);
+            // 绘制宝箱
+            chests.forEach(c => { 
+                ctx.fillStyle = '#f1c40f'; 
+                ctx.shadowBlur = 10; ctx.shadowColor = '#f1c40f';
+                ctx.fillRect(c.x+ox-15, c.y+oy-15, 30, 30);
+                ctx.shadowBlur = 0;
             });
 
+            // 绘制蛇
             player.body.forEach((b, i) => {
-                if(i%4!==0) return;
-                ctx.fillStyle = skins[storage.skinId].color; ctx.globalAlpha = 1 - i/player.body.length;
-                ctx.beginPath(); ctx.arc(b.x+ox, b.y+oy, 20-i/10, 0, Math.PI*2); ctx.fill();
+                if(i % 3 !== 0) return;
+                ctx.fillStyle = skins[storage.skinId].color;
+                ctx.globalAlpha = 1 - (i / player.body.length);
+                ctx.beginPath(); ctx.arc(b.x+ox, b.y+oy, 18 - (i/player.body.length)*10, 0, Math.PI*2); ctx.fill();
             });
             ctx.globalAlpha = 1;
         }
 
-        // --- 6. 商店与功能按钮 ---
+        function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+        function bindEvents() {
+            const start = (e) => {
+                const t = e.touches ? e.touches[0] : e;
+                joystick.active = true; joystick.sx = t.clientX; joystick.sy = t.clientY;
+                const jb = document.getElementById('joy-base');
+                jb.style.display = 'block'; jb.style.left = (t.clientX-50)+'px'; jb.style.top = (t.clientY-50)+'px';
+            };
+            const move = (e) => {
+                if(!joystick.active) return;
+                const t = e.touches ? e.touches[0] : e;
+                const dx = t.clientX - joystick.sx, dy = t.clientY - joystick.sy;
+                const dist = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
+                joystick.x = Math.cos(ang); joystick.y = Math.sin(ang);
+                document.getElementById('joy-stick').style.transform = `translate(${Math.cos(ang)*Math.min(dist,35)}px, ${Math.sin(ang)*Math.min(dist,35)}px)`;
+            };
+            const end = () => { joystick.active = false; document.getElementById('joy-base').style.display = 'none'; };
+
+            canvas.addEventListener('touchstart', start); window.addEventListener('touchmove', move); window.addEventListener('touchend', end);
+            canvas.addEventListener('mousedown', start); window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+        }
+
         function openShop() {
             let list = document.getElementById('skin-list'); list.innerHTML = "";
             skins.forEach((s, i) => {
                 let can = storage.shards >= s.need;
-                list.innerHTML += `<div style="margin:10px; color:${s.color}">${s.name}皮肤 (${s.need}碎片) 
-                    <button class="btn" onclick="unlockSkin(${i})" ${can?'':'disabled'}>${storage.skinId==i?'使用中':'兑换'}</button></div>`;
+                list.innerHTML += `<div style="margin:10px; color:${s.color}">${s.name} (${s.need}碎片) 
+                    <button class="btn" onclick="unlockSkin(${i})" ${can?'':'disabled'}>${storage.skinId==i?'使用中':'切换'}</button></div>`;
             });
             document.getElementById('shop-modal').style.display = 'block';
         }
-
         function buyShard() {
-            if(storage.coins >= 100) { storage.coins -= 100; storage.shards++; save(); updateUI(); alert("获得1个碎片！"); }
-            else { alert("金币不足！"); }
+            if(storage.coins >= 100) { storage.coins -= 100; storage.shards++; save(); updateUI(); }
+            else alert("金币不足！");
         }
-
         function unlockSkin(id) { storage.skinId = id; save(); openShop(); }
-
         function openBook() {
             let grid = document.getElementById('book-grid'); grid.innerHTML = "";
             wordBank.forEach(w => {
                 let has = storage.unlocked.includes(w.en);
-                grid.innerHTML += `<div class="word-card ${has?'unlocked':''}">
-                    ${has ? w.en + '<br>' + w.zh : '???'}</div>`;
+                grid.innerHTML += `<div class="word-card ${has?'unlocked':''}"> ${has ? w.en + '<br>' + w.zh : '???'}</div>`;
             });
             document.getElementById('book-count').innerText = storage.unlocked.length;
             document.getElementById('book-modal').style.display = 'block';
         }
-
-        function shareGame() {
-            let score = game.score;
-            prompt("快把你的链接发给好友，比比谁分数高！你的当前分是：", score);
-        }
-
         function save() {
             localStorage.setItem('sw_coins', storage.coins); localStorage.setItem('sw_shards', storage.shards);
             localStorage.setItem('sw_unlocked', JSON.stringify(storage.unlocked));
             localStorage.setItem('sw_wrong', JSON.stringify(storage.wrong));
             localStorage.setItem('sw_streak', storage.streak); localStorage.setItem('sw_date', storage.lastDate);
         }
-
         function updateUI() {
             document.getElementById('u-coins').innerText = storage.coins;
             document.getElementById('u-shards').innerText = storage.shards;
             document.getElementById('u-combo').innerText = game.combo;
             document.getElementById('u-score').innerText = game.score;
         }
-
+        function checkDaily() {
+            let today = new Date().toDateString();
+            if(storage.lastDate !== today) {
+                storage.coins += 100; storage.lastDate = today;
+                document.getElementById('l-body').innerText = "欢迎回来！送你 100 金币签到奖励。";
+                document.getElementById('login-modal').style.display = 'block';
+                save();
+            }
+        }
         function checkCombo() { if(game.combo > 0 && Date.now() - game.lastEat > 15000) { game.combo = 0; updateUI(); } }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        function bindEvents() {
-            canvas.addEventListener('touchstart', e => {
-                const t = e.touches[0]; joystick.active = true; joystick.sx = t.clientX; joystick.sy = t.clientY;
-                document.getElementById('joy-base').style.display = 'block';
-                document.getElementById('joy-base').style.left = t.clientX-50+'px'; document.getElementById('joy-base').style.top = t.clientY-50+'px';
-            });
-            window.addEventListener('touchmove', e => {
-                if(!joystick.active) return;
-                const t = e.touches[0], dx = t.clientX-joystick.sx, dy = t.clientY-joystick.sy, dist = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
-                joystick.x = Math.cos(ang); joystick.y = Math.sin(ang);
-                document.getElementById('joy-stick').style.transform = `translate(${Math.cos(ang)*Math.min(dist,30)}px, ${Math.sin(ang)*Math.min(dist,30)}px)`;
-            });
-            window.addEventListener('touchend', () => { joystick.active = false; document.getElementById('joy-base').style.display = 'none'; });
-        }
+        function shareGame() { prompt("复制分数发给朋友：", `我在单词蛇王拿到了 ${game.score} 分，你也来试试？`); }
+
         init();
     </script>
 </body>
